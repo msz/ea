@@ -11,6 +11,10 @@ defmodule EaTest do
       :result
     end
 
+    def this_is_not_cached do
+      :result
+    end
+
     @attr_test_val :expected_val
     @cached true
     def attr_test do
@@ -41,6 +45,10 @@ defmodule EaTest do
 
   test "caching works" do
     assert {:cached, :result} == CacheExample.this_is_cached()
+  end
+
+  test "not cached functions stay not cached (no attribute bleed)" do
+    assert :result == CacheExample.this_is_not_cached()
   end
 
   test "attribute values are not overriden by later redeclarations" do

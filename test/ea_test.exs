@@ -32,6 +32,11 @@ defmodule EaTest do
     def multiple_clause_test(:b) do
       :c
     end
+
+    @cached true
+    def empty_function_head_test()
+
+    def empty_function_head_test(), do: :result
   end
 
   test "caching works" do
@@ -50,6 +55,10 @@ defmodule EaTest do
   test "adding @cached to one clause caches all clauses" do
     assert {:cached, :a} == CacheExample.multiple_clause_test(:a)
     assert {:cached, :c} == CacheExample.multiple_clause_test(:b)
+  end
+
+  test "adding @cached to empty function head caches all clauses" do
+    assert {:cached, :result} == CacheExample.empty_function_head_test()
   end
 
   test "fails with multiple @cached attributes for one function" do

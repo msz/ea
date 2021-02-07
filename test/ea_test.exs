@@ -16,6 +16,11 @@ defmodule EaTest do
     end
 
     @attr_test_val :overriden_val
+
+    @cached true
+    def optional_arg_test(arg \\ nil) do
+      arg
+    end
   end
 
   test "caching works" do
@@ -24,6 +29,11 @@ defmodule EaTest do
 
   test "attribute values are not overriden by later redeclarations" do
     assert {:cached, :expected_val} == CacheExample.attr_test()
+  end
+
+  test "caching function with optional args works" do
+    assert {:cached, nil} == CacheExample.optional_arg_test()
+    assert {:cached, :arg} == CacheExample.optional_arg_test(:arg)
   end
 
   test "fails with multiple @cached attributes for one function" do

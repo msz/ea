@@ -12,7 +12,7 @@ defmodule EaTest do
   end
 
   test "is cached" do
-    assert capture_io(&CacheExample.this_is_cached/0) == "cached"
+    assert "cached\n" == capture_io(&CacheExample.this_is_cached/0)
   end
 
   test "fails with multiple @cached attributes for one function" do

@@ -23,6 +23,15 @@ defmodule EaTest do
     def optional_arg_test(arg \\ nil) do
       arg
     end
+
+    @cached true
+    def multiple_clause_test(:a) do
+      :a
+    end
+
+    def multiple_clause_test(:b) do
+      :c
+    end
   end
 
   test "caching works" do
@@ -36,6 +45,11 @@ defmodule EaTest do
   test "caching function with optional args works" do
     assert {:cached, nil} == CacheExample.optional_arg_test()
     assert {:cached, :arg} == CacheExample.optional_arg_test(:arg)
+  end
+
+  test "adding @cached to one clause caches all clauses" do
+    assert {:cached, :a} == CacheExample.multiple_clause_test(:a)
+    assert {:cached, :c} == CacheExample.multiple_clause_test(:b)
   end
 
   test "fails with multiple @cached attributes for one function" do

@@ -55,7 +55,7 @@ defmodule Ea do
             end
           )
 
-        decorated_body = body |> apply_caching(cached_value) |> ensure_do()
+        decorated_body = apply_caching(body, cached_value)
 
         def_clause =
           case guard do
@@ -113,7 +113,4 @@ defmodule Ea do
       {:cached, result}
     end
   end
-
-  defp ensure_do([{:do, _} | _] = body), do: body
-  defp ensure_do(body), do: [do: body]
 end

@@ -103,10 +103,14 @@ defmodule Ea do
     :lists.seq(arity, arity - default_count, -1)
   end
 
-  defp apply_caching(body, cached_value) do
+  defp apply_caching([do: body], cached_value) do
+    [do: apply_caching(body, cached_value)]
+  end
+
+  defp apply_caching(body, _cached_value) do
     quote do
-      IO.puts("cached")
-      unquote(body)
+      result = unquote(body)
+      {:cached, result}
     end
   end
 

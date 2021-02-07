@@ -1,18 +1,17 @@
 defmodule EaTest do
   use ExUnit.Case
-  import ExUnit.CaptureIO
 
   defmodule CacheExample do
     use Ea
 
     @cached true
     def this_is_cached do
-      nil
+      :result
     end
   end
 
   test "is cached" do
-    assert "cached\n" == capture_io(&CacheExample.this_is_cached/0)
+    assert {:cached, :result} = CacheExample.this_is_cached()
   end
 
   test "fails with multiple @cached attributes for one function" do

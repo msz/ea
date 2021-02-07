@@ -1,7 +1,9 @@
 defmodule EaTest do
+  @moduledoc false
   use ExUnit.Case
 
   defmodule CacheExample do
+    @moduledoc false
     use Ea
 
     @cached true

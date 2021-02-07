@@ -58,8 +58,7 @@ defmodule Ea do
           )
 
         attr_expressions =
-          attrs
-          |> Enum.map(fn {attr, value} ->
+          Enum.map(attrs, fn {attr, value} ->
             {:@, [], [{attr, [], [Macro.escape(value)]}]}
           end)
 

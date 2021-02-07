@@ -41,6 +41,20 @@ defmodule EaTest do
     def empty_function_head_test
 
     def empty_function_head_test, do: :result
+
+    @cached true
+    def rescue_success_test do
+      :result
+    rescue
+      _ -> :rescued
+    end
+
+    @cached true
+    def rescue_failure_test do
+      raise "boom"
+    rescue
+      _ -> :rescued
+    end
   end
 
   test "caching works" do
@@ -67,6 +81,15 @@ defmodule EaTest do
 
   test "adding @cached to empty function head caches all clauses" do
     assert {:cached, :result} == CacheExample.empty_function_head_test()
+  end
+
+  test "return value of function with rescue is cached" do
+    assert {:cached, :result} == CacheExample.rescue_success_test()
+  end
+
+  test "return value of rescue block is cached" do
+    # TODO also assert that we only access cache once
+    assert {:cached, :rescued} == CacheExample.rescue_failure_test()
   end
 
   test "fails with multiple @cached attributes for one function" do

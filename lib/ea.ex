@@ -131,6 +131,16 @@ defmodule Ea do
     [do: apply_caching(body, cached_value)]
   end
 
+  defp apply_caching([do: body, rescue: rescue_block], cached_value) do
+    [
+      do: apply_caching(body, cached_value),
+      rescue:
+        Enum.map(rescue_block, fn {:->, meta, [match, match_body]} ->
+          {:->, meta, [match, apply_caching(match_body, cached_value)]}
+        end)
+    ]
+  end
+
   defp apply_caching(body, _cached_value) do
     quote do
       result = unquote(body)

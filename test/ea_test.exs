@@ -38,9 +38,9 @@ defmodule EaTest do
     end
 
     @cached true
-    def empty_function_head_test()
+    def empty_function_head_test
 
-    def empty_function_head_test(), do: :result
+    def empty_function_head_test, do: :result
   end
 
   test "caching works" do

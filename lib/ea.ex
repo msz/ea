@@ -23,10 +23,12 @@ defmodule Ea do
         nil
 
       [cached_value] ->
+        attrs = extract_attributes(env.module, body)
+
         Module.put_attribute(
           env.module,
           :cached_fun,
-          {kind, name, args, guards, body, cached_value}
+          {kind, name, args, guards, body, attrs, cached_value}
         )
 
         Module.delete_attribute(env.module, :cached)
@@ -44,7 +46,7 @@ defmodule Ea do
     {_, funs_with_caching} =
       cached_funs
       |> reject_empty_clauses()
-      |> Enum.reduce({[], []}, fn {kind, name, args, guard, body, cached_value},
+      |> Enum.reduce({[], []}, fn {kind, name, args, guard, body, attrs, cached_value},
                                   {prev_funs, all} ->
         override_clause =
           args
@@ -54,6 +56,12 @@ defmodule Ea do
               defoverridable [{unquote(name), unquote(&1)}]
             end
           )
+
+        attr_expressions =
+          attrs
+          |> Enum.map(fn {attr, value} ->
+            {:@, [], [{attr, [], [Macro.escape(value)]}]}
+          end)
 
         decorated_body = apply_caching(body, cached_value)
 
@@ -76,17 +84,34 @@ defmodule Ea do
         arity = Enum.count(args)
 
         if {name, arity} in prev_funs do
-          {prev_funs, [def_clause | all]}
+          {prev_funs, [def_clause | attr_expressions ++ all]}
         else
-          {[{name, arity} | prev_funs], [def_clause, override_clause | all]}
+          {[{name, arity} | prev_funs], [def_clause, override_clause | attr_expressions ++ all]}
         end
       end)
 
     Enum.reverse(funs_with_caching)
   end
 
+  defp extract_attributes(module, body) do
+    {_, attrs} =
+      Macro.postwalk(body, %{}, fn
+        {:@, _, [{attr, _, nil}]} = n, attrs ->
+          attrs = Map.put(attrs, attr, Module.get_attribute(module, attr))
+          {n, attrs}
+
+        n, attrs ->
+          {n, attrs}
+      end)
+
+    attrs
+  end
+
   defp reject_empty_clauses(cached_funs) do
-    Enum.reject(cached_funs, &match?({_kind, _fun, _args, _guards, nil, _decorators, _attrs}, &1))
+    Enum.reject(
+      cached_funs,
+      &match?({_kind, _fun, _args, _guards, nil, _attrs, _cached_value}, &1)
+    )
   end
 
   defp implied_arities(args) do

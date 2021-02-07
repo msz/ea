@@ -8,10 +8,22 @@ defmodule EaTest do
     def this_is_cached do
       :result
     end
+
+    @attr_test_val :expected_val
+    @cached true
+    def attr_test do
+      @attr_test_val
+    end
+
+    @attr_test_val :overriden_val
   end
 
-  test "is cached" do
-    assert {:cached, :result} = CacheExample.this_is_cached()
+  test "caching works" do
+    assert {:cached, :result} == CacheExample.this_is_cached()
+  end
+
+  test "attribute values are not overriden by later redeclarations" do
+    assert {:cached, :expected_val} == CacheExample.attr_test()
   end
 
   test "fails with multiple @cached attributes for one function" do

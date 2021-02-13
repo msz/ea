@@ -57,6 +57,7 @@ defmodule Ea do
   end
 
   defmacro __before_compile__(env) do
+    Module.delete_attribute(env.module, :ea_open_fun)
     redefined_funs = env.module |> Module.get_attribute(:ea_redefined_fun) |> Enum.reverse()
     Module.delete_attribute(env.module, :ea_redefined_fun)
 

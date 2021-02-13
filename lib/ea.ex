@@ -210,7 +210,8 @@ defmodule Ea do
       do: apply_caching(module, name, args, body, cached_value),
       rescue:
         Enum.map(rescue_block, fn {:->, meta, [match, match_body]} ->
-          {:->, meta, [match, apply_caching(module, name, args, match_body, cached_value)]}
+          {:->, meta,
+           [match, apply_cache_failure_case(module, name, args, match_body, cached_value)]}
         end)
     ]
   end
@@ -221,8 +222,8 @@ defmodule Ea do
 
   defp apply_caching(module, name, args, body, true) do
     # We will refer to these args in the body, but this comes from the function
-    # head and might contain a default value. We want to refer to a `arg \\
-    # :default_value` as just `arg` in the body.
+    # head and might contain a default value. We want to refer to a `arg \\ :default_value`
+    # as just `arg` in the body.
     args = strip_default_values(args)
 
     quote do
@@ -233,10 +234,21 @@ defmodule Ea do
           value
 
         {:error, :no_value} ->
-          result = unquote(body)
-          backend_module.put(unquote(module), unquote(name), unquote(args), result, backend_opts)
-          result
+          unquote(apply_cache_failure_case(module, name, args, body, true))
+          # result = unquote(body)
+          # backend_module.put(unquote(module), unquote(name), unquote(args), result, backend_opts)
+          # result
       end
+    end
+  end
+
+  def apply_cache_failure_case(module, name, args, body, _cache_value) do
+    quote do
+      {backend_module, backend_opts} = unquote(@default_backend)
+
+      result = unquote(body)
+      backend_module.put(unquote(module), unquote(name), unquote(args), result, backend_opts)
+      result
     end
   end
 

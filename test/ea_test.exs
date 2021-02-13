@@ -74,9 +74,9 @@ defmodule EaTest do
     assert {:cached, :arg} == CacheExample.optional_arg_test(:arg)
   end
 
-  test "adding @cached to one clause caches all clauses" do
+  test "adding @cached to one clause caches only that clause" do
     assert {:cached, :a} == CacheExample.multiple_clause_test(:a)
-    assert {:cached, :c} == CacheExample.multiple_clause_test(:b)
+    assert :c == CacheExample.multiple_clause_test(:b)
   end
 
   test "adding @cached to empty function head caches all clauses" do

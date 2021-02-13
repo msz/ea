@@ -13,38 +13,56 @@ defmodule Ea do
       @before_compile Ea
 
       Module.register_attribute(__MODULE__, :cached, accumulate: true)
-      Module.register_attribute(__MODULE__, :cached_fun, accumulate: true)
+      Module.register_attribute(__MODULE__, :ea_redefined_fun, accumulate: true)
     end
   end
 
   def __on_definition__(env, kind, name, args, guards, body) do
-    case Module.get_attribute(env.module, :cached) do
-      [] ->
-        nil
+    {open_fun_name, open_fun_args, open_fun_cached_value} =
+      Module.get_attribute(env.module, :ea_open_fun, {nil, [], nil})
 
-      [cached_value] ->
-        attrs = extract_attributes(env.module, body)
+    cached_value =
+      if {name, length(args)} == {open_fun_name, length(open_fun_args)} and
+           open_fun_cached_value != nil do
+        open_fun_cached_value
+      else
+        case Module.get_attribute(env.module, :cached) do
+          [] ->
+            nil
 
-        Module.put_attribute(
-          env.module,
-          :cached_fun,
-          {kind, name, args, guards, body, attrs, cached_value}
-        )
+          [cached_value] ->
+            Module.delete_attribute(env.module, :cached)
+            cached_value
 
-        Module.delete_attribute(env.module, :cached)
+          [_ | _] ->
+            raise MultipleCachedAttributesError,
+                  "More than one @cached attribute defined for #{env.module}.#{name}/#{
+                    length(args)
+                  }. Please only define one."
+        end
+      end
 
-      [_ | _] ->
-        raise MultipleCachedAttributesError,
-              "More than one @cached attribute defined for #{env.module}.#{name}/#{length(args)}. Please only define one."
+    attrs = extract_attributes(env.module, body)
+
+    Module.put_attribute(
+      env.module,
+      :ea_redefined_fun,
+      {kind, name, args, guards, body, attrs, cached_value}
+    )
+
+    unless {name, length(args)} == {open_fun_name, length(open_fun_args)} do
+      new_open_fun_cached_value = if body == nil, do: cached_value, else: nil
+      Module.put_attribute(env.module, :ea_open_fun, {name, args, new_open_fun_cached_value})
     end
   end
 
   defmacro __before_compile__(env) do
-    cached_funs = env.module |> Module.get_attribute(:cached_fun) |> Enum.reverse()
-    Module.delete_attribute(env.module, :cached_fun)
+    redefined_funs = env.module |> Module.get_attribute(:ea_redefined_fun) |> Enum.reverse()
+    Module.delete_attribute(env.module, :ea_redefined_fun)
 
     {_, funs_with_caching} =
-      cached_funs
+      redefined_funs
+      # We don't have anything to redefine for empty clauses
       |> reject_empty_clauses()
       |> Enum.reduce({[], []}, fn {kind, name, args, guard, body, attrs, cached_value},
                                   {prev_funs, all} ->
@@ -80,7 +98,7 @@ defmodule Ea do
               end
           end
 
-        arity = Enum.count(args)
+        arity = length(args)
 
         if {name, arity} in prev_funs do
           {prev_funs, [def_clause | attr_expressions ++ all]}
@@ -106,9 +124,9 @@ defmodule Ea do
     attrs
   end
 
-  defp reject_empty_clauses(cached_funs) do
+  defp reject_empty_clauses(redefined_funs) do
     Enum.reject(
-      cached_funs,
+      redefined_funs,
       &match?({_kind, _fun, _args, _guards, nil, _attrs, _cached_value}, &1)
     )
   end
@@ -139,6 +157,10 @@ defmodule Ea do
           {:->, meta, [match, apply_caching(match_body, cached_value)]}
         end)
     ]
+  end
+
+  defp apply_caching(body, nil) do
+    body
   end
 
   defp apply_caching(body, _cached_value) do

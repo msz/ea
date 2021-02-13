@@ -235,9 +235,6 @@ defmodule Ea do
 
         {:error, :no_value} ->
           unquote(apply_cache_failure_case(module, name, args, body, true))
-          # result = unquote(body)
-          # backend_module.put(unquote(module), unquote(name), unquote(args), result, backend_opts)
-          # result
       end
     end
   end

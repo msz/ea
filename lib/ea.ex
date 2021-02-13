@@ -64,6 +64,8 @@ defmodule Ea do
       redefined_funs
       # We don't have anything to redefine for empty clauses
       |> reject_empty_clauses()
+      # No need to redefine functions where no clauses have any caching
+      |> reject_not_cached_funs()
       |> Enum.reduce({[], []}, fn {kind, name, args, guard, body, attrs, cached_value},
                                   {prev_funs, all} ->
         override_clause =
@@ -127,8 +129,29 @@ defmodule Ea do
   defp reject_empty_clauses(redefined_funs) do
     Enum.reject(
       redefined_funs,
-      &match?({_kind, _fun, _args, _guards, nil, _attrs, _cached_value}, &1)
+      &match?({_kind, _name, _args, _guards, nil, _attrs, _cached_value}, &1)
     )
+  end
+
+  defp reject_not_cached_funs(redefined_funs) do
+    not_cached_funs =
+      redefined_funs
+      |> Enum.group_by(
+        fn {_kind, name, args, _guards, _body, _attrs, _cached_value} ->
+          {name, length(args)}
+        end,
+        fn {_kind, _name, _args, _guards, _body, _attrs, cached_value} ->
+          cached_value
+        end
+      )
+      |> Enum.filter(fn {_name_and_arity, cached_values} ->
+        Enum.all?(cached_values, &is_nil/1)
+      end)
+      |> Enum.map(fn {name_and_arity, _cached_values} -> name_and_arity end)
+
+    Enum.reject(redefined_funs, fn {_kind, name, args, _guards, _body, _attrs, _cached_value} ->
+      {name, length(args)} in not_cached_funs
+    end)
   end
 
   defp implied_arities(args) do

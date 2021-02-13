@@ -28,11 +28,11 @@ defmodule EaTest do
       arg
     end
 
-    @cached true
     def multiple_clause_test(:a) do
       :a
     end
 
+    @cached true
     def multiple_clause_test(:b) do
       :c
     end
@@ -75,8 +75,8 @@ defmodule EaTest do
   end
 
   test "adding @cached to one clause caches only that clause" do
-    assert {:cached, :a} == CacheExample.multiple_clause_test(:a)
-    assert :c == CacheExample.multiple_clause_test(:b)
+    assert :a == CacheExample.multiple_clause_test(:a)
+    assert {:cached, :c} == CacheExample.multiple_clause_test(:b)
   end
 
   test "adding @cached to empty function head caches all clauses" do

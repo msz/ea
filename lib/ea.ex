@@ -3,6 +3,8 @@ defmodule Ea do
   The main Ea module.
   """
 
+  @default_backend Application.compile_env!(:ea, :default_backend)
+
   defmodule MultipleCachedAttributesError do
     defexception [:message]
   end
@@ -83,7 +85,11 @@ defmodule Ea do
             {:@, [], [{attr, [], [Macro.escape(value)]}]}
           end)
 
-        decorated_body = apply_caching(body, cached_value)
+        # Even if some args are unused, they will be used as part of the
+        # caching mechanism, so we need to adjust that.
+        args = turn_unused_args_into_used(args)
+
+        decorated_body = apply_caching(env.module, name, args, body, cached_value)
 
         def_clause =
           case guard do
@@ -111,6 +117,32 @@ defmodule Ea do
       end)
 
     Enum.reverse(funs_with_caching)
+  end
+
+  defp turn_unused_args_into_used(args) do
+    Enum.map(args, fn
+      {name, meta, val} ->
+        new_name =
+          name
+          |> Atom.to_string()
+          |> String.split("_")
+          |> strip_empty_strings_from_list_head()
+          |> Enum.join()
+          |> String.to_atom()
+
+        {new_name, meta, val}
+
+      literal_value ->
+        literal_value
+    end)
+  end
+
+  defp strip_empty_strings_from_list_head(["" | rest]) do
+    strip_empty_strings_from_list_head(rest)
+  end
+
+  defp strip_empty_strings_from_list_head(other) do
+    other
   end
 
   defp extract_attributes(module, body) do
@@ -169,28 +201,49 @@ defmodule Ea do
     :lists.seq(arity, arity - default_count, -1)
   end
 
-  defp apply_caching([do: body], cached_value) do
-    [do: apply_caching(body, cached_value)]
+  defp apply_caching(module, name, args, [do: body], cached_value) do
+    [do: apply_caching(module, name, args, body, cached_value)]
   end
 
-  defp apply_caching([do: body, rescue: rescue_block], cached_value) do
+  defp apply_caching(module, name, args, [do: body, rescue: rescue_block], cached_value) do
     [
-      do: apply_caching(body, cached_value),
+      do: apply_caching(module, name, args, body, cached_value),
       rescue:
         Enum.map(rescue_block, fn {:->, meta, [match, match_body]} ->
-          {:->, meta, [match, apply_caching(match_body, cached_value)]}
+          {:->, meta, [match, apply_caching(module, name, args, match_body, cached_value)]}
         end)
     ]
   end
 
-  defp apply_caching(body, nil) do
+  defp apply_caching(_module, _name, _args, body, nil) do
     body
   end
 
-  defp apply_caching(body, _cached_value) do
+  defp apply_caching(module, name, args, body, true) do
+    # We will refer to these args in the body, but this comes from the function
+    # head and might contain a default value. We want to refer to a `arg \\
+    # :default_value` as just `arg` in the body.
+    args = strip_default_values(args)
+
     quote do
-      result = unquote(body)
-      {:cached, result}
+      {backend_module, backend_opts} = unquote(@default_backend)
+
+      case backend_module.get(unquote(module), unquote(name), unquote(args), backend_opts) do
+        {:ok, value} ->
+          value
+
+        {:error, :no_value} ->
+          result = unquote(body)
+          backend_module.put(unquote(module), unquote(name), unquote(args), result, backend_opts)
+          result
+      end
     end
+  end
+
+  defp strip_default_values(args) do
+    Enum.map(args, fn
+      {:\\, _, [{arg, _, nil}, _default_value]} -> Macro.var(arg, nil)
+      arg -> arg
+    end)
   end
 end

@@ -2,6 +2,12 @@ defmodule EaTest do
   @moduledoc false
   use ExUnit.Case
 
+  import Hammox
+
+  defmock(BackendMock, for: Ea.Backend)
+
+  @backend_opts :ea |> Application.compile_env!(:default_backend) |> elem(1)
+
   defmodule CacheExample do
     @moduledoc false
     use Ea
@@ -9,6 +15,16 @@ defmodule EaTest do
     @cached true
     def this_is_cached do
       :result
+    end
+
+    @cached true
+    def this_is_cached_with_arg(arg) do
+      arg
+    end
+
+    @cached true
+    def this_is_cached_with_unused_arg(_arg) do
+      :baked_in_value
     end
 
     def this_is_not_cached do
@@ -57,8 +73,24 @@ defmodule EaTest do
     end
   end
 
+  setup :verify_on_exit!
+
   test "caching works" do
-    assert {:cached, :result} == CacheExample.this_is_cached()
+    setup_cache_pass(CacheExample, :this_is_cached, [])
+
+    assert :cached == CacheExample.this_is_cached()
+  end
+
+  test "caching function with arg works" do
+    setup_cache_pass(CacheExample, :this_is_cached_with_arg, [:val])
+
+    assert :cached == CacheExample.this_is_cached_with_arg(:val)
+  end
+
+  test "unused args are still used as args for caching" do
+    setup_cache_pass(CacheExample, :this_is_cached_with_unused_arg, [:val])
+
+    assert :cached == CacheExample.this_is_cached_with_unused_arg(:val)
   end
 
   test "not cached functions stay not cached (no attribute bleed)" do
@@ -66,30 +98,38 @@ defmodule EaTest do
   end
 
   test "attribute values are not overriden by later redeclarations" do
-    assert {:cached, :expected_val} == CacheExample.attr_test()
+    setup_cache_fail(CacheExample, :attr_test, [], :expected_val)
+    assert :expected_val == CacheExample.attr_test()
   end
 
   test "caching function with optional args works" do
-    assert {:cached, nil} == CacheExample.optional_arg_test()
-    assert {:cached, :arg} == CacheExample.optional_arg_test(:arg)
+    setup_cache_pass(CacheExample, :optional_arg_test, [nil])
+    assert :cached == CacheExample.optional_arg_test()
+
+    setup_cache_pass(CacheExample, :optional_arg_test, [:value])
+    assert :cached == CacheExample.optional_arg_test(:value)
   end
 
   test "adding @cached to one clause caches only that clause" do
     assert :a == CacheExample.multiple_clause_test(:a)
-    assert {:cached, :c} == CacheExample.multiple_clause_test(:b)
+
+    setup_cache_pass(CacheExample, :multiple_clause_test, [:b])
+    assert :cached == CacheExample.multiple_clause_test(:b)
   end
 
   test "adding @cached to empty function head caches all clauses" do
-    assert {:cached, :result} == CacheExample.empty_function_head_test()
+    setup_cache_pass(CacheExample, :empty_function_head_test, [])
+    assert :cached == CacheExample.empty_function_head_test()
   end
 
   test "return value of function with rescue is cached" do
-    assert {:cached, :result} == CacheExample.rescue_success_test()
+    setup_cache_fail(CacheExample, :rescue_success_test, [], :result)
+    assert :result == CacheExample.rescue_success_test()
   end
 
   test "return value of rescue block is cached" do
-    # TODO also assert that we only access cache once
-    assert {:cached, :rescued} == CacheExample.rescue_failure_test()
+    setup_cache_fail(CacheExample, :rescue_failure_test, [], :rescued)
+    assert :rescued == CacheExample.rescue_failure_test()
   end
 
   test "fails with multiple @cached attributes for one function" do
@@ -106,5 +146,21 @@ defmodule EaTest do
     """
 
     assert_raise Ea.MultipleCachedAttributesError, fn -> Code.compile_string(module_string) end
+  end
+
+  defp setup_cache_pass(module, name, args) do
+    expect(BackendMock, :get, fn ^module, ^name, ^args, @backend_opts ->
+      {:ok, :cached}
+    end)
+  end
+
+  defp setup_cache_fail(module, name, args, expected_value) do
+    expect(BackendMock, :get, fn ^module, ^name, ^args, @backend_opts ->
+      {:error, :no_value}
+    end)
+
+    expect(BackendMock, :put, fn ^module, ^name, ^args, ^expected_value, @backend_opts ->
+      :ok
+    end)
   end
 end

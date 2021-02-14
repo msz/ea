@@ -6,7 +6,7 @@ defmodule Ea do
   @default_backend Application.compile_env!(:ea, :default_backend)
 
   defmacro __using__(opts) do
-    ea_backend =
+    {backend_module, backend_opts} =
       case Keyword.fetch(opts, :backend) do
         {:ok, backend_opt} -> parse_backend_opt(backend_opt)
         :error -> @default_backend
@@ -16,10 +16,15 @@ defmodule Ea do
       @on_definition Ea
       @before_compile Ea
 
-      @ea_backend unquote(ea_backend)
+      @ea_backend_module unquote(backend_module)
+      @ea_backend_opts unquote(backend_opts)
 
       Module.register_attribute(__MODULE__, :cached, accumulate: true)
       Module.register_attribute(__MODULE__, :ea_redefined_fun, accumulate: true)
+
+      defp invalidate_cache(function_name, args) do
+        @ea_backend_module.invalidate(__MODULE__, function_name, args, @ea_backend_opts)
+      end
     end
   end
 
@@ -253,9 +258,12 @@ defmodule Ea do
     params = strip_default_values(params)
 
     quote do
-      {backend_module, backend_opts} = @ea_backend
-
-      case backend_module.get(unquote(module), unquote(name), unquote(params), backend_opts) do
+      case @ea_backend_module.get(
+             unquote(module),
+             unquote(name),
+             unquote(params),
+             @ea_backend_opts
+           ) do
         {:ok, value} ->
           value
 
@@ -267,17 +275,15 @@ defmodule Ea do
 
   def apply_cache_failure_case(module, name, params, body, expiry) do
     quote do
-      {backend_module, backend_opts} = unquote(@default_backend)
-
       result = unquote(body)
 
-      backend_module.put(
+      @ea_backend_module.put(
         unquote(module),
         unquote(name),
         unquote(params),
         result,
         unquote(expiry),
-        backend_opts
+        @ea_backend_opts
       )
 
       result

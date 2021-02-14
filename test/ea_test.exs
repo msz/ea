@@ -92,6 +92,10 @@ defmodule EaTest do
     rescue
       _ -> :rescued
     end
+
+    def single_invalidation_test do
+      invalidate_cache(:this_is_cached_with_param, [:arg])
+    end
   end
 
   defmodule CacheExampleCustomBackend do
@@ -297,6 +301,17 @@ defmodule EaTest do
     end)
 
     assert :cached == CacheExampleCustomBackend.this_is_cached()
+  end
+
+  test "cache invalidation works for a list of args" do
+    expect(BackendMock, :invalidate, fn CacheExample,
+                                        :this_is_cached_with_param,
+                                        [:arg],
+                                        @backend_opts ->
+      :ok
+    end)
+
+    assert :ok == CacheExample.single_invalidation_test()
   end
 
   defp setup_cache_pass(module, name, args) do

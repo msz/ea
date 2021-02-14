@@ -18,12 +18,12 @@ defmodule EaTest do
     end
 
     @cached true
-    def this_is_cached_with_arg(arg) do
-      arg
+    def this_is_cached_with_param(param) do
+      param
     end
 
     @cached true
-    def this_is_cached_with_unused_arg(_arg) do
+    def this_is_cached_with_unused_param(_param) do
       :baked_in_value
     end
 
@@ -40,8 +40,8 @@ defmodule EaTest do
     @attr_test_val :overriden_val
 
     @cached true
-    def optional_arg_test(arg \\ nil) do
-      arg
+    def default_param_test(param \\ nil) do
+      param
     end
 
     def multiple_clause_test(:a) do
@@ -81,16 +81,16 @@ defmodule EaTest do
     assert :cached == CacheExample.this_is_cached()
   end
 
-  test "caching function with arg works" do
-    setup_cache_pass(CacheExample, :this_is_cached_with_arg, [:val])
+  test "caching function with param works" do
+    setup_cache_pass(CacheExample, :this_is_cached_with_param, [:val])
 
-    assert :cached == CacheExample.this_is_cached_with_arg(:val)
+    assert :cached == CacheExample.this_is_cached_with_param(:val)
   end
 
-  test "unused args are still used as args for caching" do
-    setup_cache_pass(CacheExample, :this_is_cached_with_unused_arg, [:val])
+  test "unused params are still used as params for caching" do
+    setup_cache_pass(CacheExample, :this_is_cached_with_unused_param, [:val])
 
-    assert :cached == CacheExample.this_is_cached_with_unused_arg(:val)
+    assert :cached == CacheExample.this_is_cached_with_unused_param(:val)
   end
 
   test "not cached functions stay not cached (no attribute bleed)" do
@@ -102,12 +102,12 @@ defmodule EaTest do
     assert :expected_val == CacheExample.attr_test()
   end
 
-  test "caching function with optional args works" do
-    setup_cache_pass(CacheExample, :optional_arg_test, [nil])
-    assert :cached == CacheExample.optional_arg_test()
+  test "caching function with default params works" do
+    setup_cache_pass(CacheExample, :default_param_test, [nil])
+    assert :cached == CacheExample.default_param_test()
 
-    setup_cache_pass(CacheExample, :optional_arg_test, [:value])
-    assert :cached == CacheExample.optional_arg_test(:value)
+    setup_cache_pass(CacheExample, :default_param_test, [:value])
+    assert :cached == CacheExample.default_param_test(:value)
   end
 
   test "adding @cached to one clause caches only that clause" do

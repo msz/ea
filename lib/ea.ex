@@ -19,12 +19,12 @@ defmodule Ea do
     end
   end
 
-  def __on_definition__(env, kind, name, args, guards, body) do
-    {open_fun_name, open_fun_args, open_fun_cached_value} =
+  def __on_definition__(env, kind, name, params, guards, body) do
+    {open_fun_name, open_fun_params, open_fun_cached_value} =
       Module.get_attribute(env.module, :ea_open_fun, {nil, [], nil})
 
     cached_value =
-      if {name, length(args)} == {open_fun_name, length(open_fun_args)} and
+      if {name, length(params)} == {open_fun_name, length(open_fun_params)} and
            open_fun_cached_value != nil do
         open_fun_cached_value
       else
@@ -39,7 +39,7 @@ defmodule Ea do
           [_ | _] ->
             raise MultipleCachedAttributesError,
                   "More than one @cached attribute defined for #{env.module}.#{name}/#{
-                    length(args)
+                    length(params)
                   }. Please only define one."
         end
       end
@@ -49,12 +49,12 @@ defmodule Ea do
     Module.put_attribute(
       env.module,
       :ea_redefined_fun,
-      {kind, name, args, guards, body, attrs, cached_value}
+      {kind, name, params, guards, body, attrs, cached_value}
     )
 
-    unless {name, length(args)} == {open_fun_name, length(open_fun_args)} do
+    unless {name, length(params)} == {open_fun_name, length(open_fun_params)} do
       new_open_fun_cached_value = if body == nil, do: cached_value, else: nil
-      Module.put_attribute(env.module, :ea_open_fun, {name, args, new_open_fun_cached_value})
+      Module.put_attribute(env.module, :ea_open_fun, {name, params, new_open_fun_cached_value})
     end
   end
 
@@ -69,10 +69,10 @@ defmodule Ea do
       |> reject_empty_clauses()
       # No need to redefine functions where no clauses have any caching
       |> reject_not_cached_funs()
-      |> Enum.reduce({[], []}, fn {kind, name, args, guard, body, attrs, cached_value},
+      |> Enum.reduce({[], []}, fn {kind, name, params, guard, body, attrs, cached_value},
                                   {prev_funs, all} ->
         override_clause =
-          args
+          params
           |> implied_arities()
           |> Enum.map(
             &quote do
@@ -85,29 +85,29 @@ defmodule Ea do
             {:@, [], [{attr, [], [Macro.escape(value)]}]}
           end)
 
-        # Even if some args are unused, they will be used as part of the
+        # Even if some params are unused, they will be used as part of the
         # caching mechanism, so we need to adjust that.
-        args = turn_unused_args_into_used(args)
+        params = turn_unused_params_into_used(params)
 
-        decorated_body = apply_caching(env.module, name, args, body, cached_value)
+        decorated_body = apply_caching(env.module, name, params, body, cached_value)
 
         def_clause =
           case guard do
             [] ->
               quote do
-                unquote(kind)(unquote(name)(unquote_splicing(args)), unquote(decorated_body))
+                unquote(kind)(unquote(name)(unquote_splicing(params)), unquote(decorated_body))
               end
 
             _ ->
               quote do
                 unquote(kind)(
-                  unquote(name)(unquote_splicing(args)) when unquote_splicing(guard),
+                  unquote(name)(unquote_splicing(params)) when unquote_splicing(guard),
                   unquote(decorated_body)
                 )
               end
           end
 
-        arity = length(args)
+        arity = length(params)
 
         if {name, arity} in prev_funs do
           {prev_funs, [def_clause | attr_expressions ++ all]}
@@ -119,8 +119,8 @@ defmodule Ea do
     Enum.reverse(funs_with_caching)
   end
 
-  defp turn_unused_args_into_used(args) do
-    Enum.map(args, fn
+  defp turn_unused_params_into_used(params) do
+    Enum.map(params, fn
       {name, meta, val} ->
         new_name =
           name
@@ -162,7 +162,7 @@ defmodule Ea do
   defp reject_empty_clauses(redefined_funs) do
     Enum.reject(
       redefined_funs,
-      &match?({_kind, _name, _args, _guards, nil, _attrs, _cached_value}, &1)
+      &match?({_kind, _name, _params, _guards, nil, _attrs, _cached_value}, &1)
     )
   end
 
@@ -170,10 +170,10 @@ defmodule Ea do
     not_cached_funs =
       redefined_funs
       |> Enum.group_by(
-        fn {_kind, name, args, _guards, _body, _attrs, _cached_value} ->
-          {name, length(args)}
+        fn {_kind, name, params, _guards, _body, _attrs, _cached_value} ->
+          {name, length(params)}
         end,
-        fn {_kind, _name, _args, _guards, _body, _attrs, cached_value} ->
+        fn {_kind, _name, _params, _guards, _body, _attrs, cached_value} ->
           cached_value
         end
       )
@@ -182,16 +182,16 @@ defmodule Ea do
       end)
       |> Enum.map(fn {name_and_arity, _cached_values} -> name_and_arity end)
 
-    Enum.reject(redefined_funs, fn {_kind, name, args, _guards, _body, _attrs, _cached_value} ->
-      {name, length(args)} in not_cached_funs
+    Enum.reject(redefined_funs, fn {_kind, name, params, _guards, _body, _attrs, _cached_value} ->
+      {name, length(params)} in not_cached_funs
     end)
   end
 
-  defp implied_arities(args) do
-    arity = Enum.count(args)
+  defp implied_arities(params) do
+    arity = Enum.count(params)
 
     default_count =
-      args
+      params
       |> Enum.filter(fn
         {:\\, _, _} -> true
         _ -> false
@@ -201,58 +201,58 @@ defmodule Ea do
     :lists.seq(arity, arity - default_count, -1)
   end
 
-  defp apply_caching(module, name, args, [do: body], cached_value) do
-    [do: apply_caching(module, name, args, body, cached_value)]
+  defp apply_caching(module, name, params, [do: body], cached_value) do
+    [do: apply_caching(module, name, params, body, cached_value)]
   end
 
-  defp apply_caching(module, name, args, [do: body, rescue: rescue_block], cached_value) do
+  defp apply_caching(module, name, params, [do: body, rescue: rescue_block], cached_value) do
     [
-      do: apply_caching(module, name, args, body, cached_value),
+      do: apply_caching(module, name, params, body, cached_value),
       rescue:
         Enum.map(rescue_block, fn {:->, meta, [match, match_body]} ->
           {:->, meta,
-           [match, apply_cache_failure_case(module, name, args, match_body, cached_value)]}
+           [match, apply_cache_failure_case(module, name, params, match_body, cached_value)]}
         end)
     ]
   end
 
-  defp apply_caching(_module, _name, _args, body, nil) do
+  defp apply_caching(_module, _name, _params, body, nil) do
     body
   end
 
-  defp apply_caching(module, name, args, body, true) do
-    # We will refer to these args in the body, but this comes from the function
-    # head and might contain a default value. We want to refer to a `arg \\ :default_value`
-    # as just `arg` in the body.
-    args = strip_default_values(args)
+  defp apply_caching(module, name, params, body, true) do
+    # We will refer to these params in the body, but this comes from the function
+    # head and might contain a default value. We want to refer to a `param \\ :default_value`
+    # as just `param` in the body.
+    params = strip_default_values(params)
 
     quote do
       {backend_module, backend_opts} = unquote(@default_backend)
 
-      case backend_module.get(unquote(module), unquote(name), unquote(args), backend_opts) do
+      case backend_module.get(unquote(module), unquote(name), unquote(params), backend_opts) do
         {:ok, value} ->
           value
 
         {:error, :no_value} ->
-          unquote(apply_cache_failure_case(module, name, args, body, true))
+          unquote(apply_cache_failure_case(module, name, params, body, true))
       end
     end
   end
 
-  def apply_cache_failure_case(module, name, args, body, _cache_value) do
+  def apply_cache_failure_case(module, name, params, body, _cache_value) do
     quote do
       {backend_module, backend_opts} = unquote(@default_backend)
 
       result = unquote(body)
-      backend_module.put(unquote(module), unquote(name), unquote(args), result, backend_opts)
+      backend_module.put(unquote(module), unquote(name), unquote(params), result, backend_opts)
       result
     end
   end
 
-  defp strip_default_values(args) do
-    Enum.map(args, fn
-      {:\\, _, [{arg, _, nil}, _default_value]} -> Macro.var(arg, nil)
-      arg -> arg
+  defp strip_default_values(params) do
+    Enum.map(params, fn
+      {:\\, _, [{param, _, nil}, _default_value]} -> Macro.var(param, nil)
+      param -> param
     end)
   end
 end

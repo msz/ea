@@ -280,7 +280,18 @@ defmodule Ea do
   end
 
   defp cached_attr_value_to_expiry(true), do: :never
-  defp cached_attr_value_to_expiry(millis) when is_integer(millis) and millis > 0, do: millis
+
+  defp cached_attr_value_to_expiry(seconds) when is_integer(seconds) and seconds > 0,
+    do: cached_attr_value_to_expiry({seconds, :second})
+
+  defp cached_attr_value_to_expiry({minutes, :minute}) when is_integer(minutes) and minutes > 0,
+    do: cached_attr_value_to_expiry({minutes * 60, :second})
+
+  defp cached_attr_value_to_expiry({seconds, :second}) when is_integer(seconds) and seconds > 0,
+    do: cached_attr_value_to_expiry({seconds * 1000, :millisecond})
+
+  defp cached_attr_value_to_expiry({millis, :millisecond}) when is_integer(millis) and millis > 0,
+    do: millis
 
   defp cached_attr_value_to_expiry(invalid),
     do: raise(Ea.InvalidCachedAttributeValueError.new(invalid))

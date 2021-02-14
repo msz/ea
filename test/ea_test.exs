@@ -27,6 +27,21 @@ defmodule EaTest do
       :result
     end
 
+    @cached {1000, :millisecond}
+    def this_is_cached_milliseconds do
+      :result
+    end
+
+    @cached {1000, :second}
+    def this_is_cached_seconds do
+      :result
+    end
+
+    @cached {1000, :minute}
+    def this_is_cached_minutes do
+      :result
+    end
+
     @cached true
     def this_is_cached_with_unused_param(_param) do
       :baked_in_value
@@ -98,10 +113,28 @@ defmodule EaTest do
     assert :result == CacheExample.this_is_cached()
   end
 
-  test "cached attribute value is passed as-is if it's a positive integer" do
-    setup_cache_fail(CacheExample, :this_is_cached_positive_integer, [], :result, 1000)
+  test "cached attribute value is interpreted as seconds and converted to milliseconds when it's a positive integer" do
+    setup_cache_fail(CacheExample, :this_is_cached_positive_integer, [], :result, 1000 * 1000)
 
     assert :result == CacheExample.this_is_cached_positive_integer()
+  end
+
+  test "cached attribute value as milliseconds is passed without conversion" do
+    setup_cache_fail(CacheExample, :this_is_cached_milliseconds, [], :result, 1000)
+
+    assert :result == CacheExample.this_is_cached_milliseconds()
+  end
+
+  test "cached attribute value as seconds is converted to milliseconds" do
+    setup_cache_fail(CacheExample, :this_is_cached_seconds, [], :result, 1000 * 1000)
+
+    assert :result == CacheExample.this_is_cached_seconds()
+  end
+
+  test "cached attribute value as minutes is converted to milliseconds" do
+    setup_cache_fail(CacheExample, :this_is_cached_minutes, [], :result, 1000 * 1000 * 60)
+
+    assert :result == CacheExample.this_is_cached_minutes()
   end
 
   test "fails with negative @cached attribute value" do
@@ -134,9 +167,9 @@ defmodule EaTest do
     assert_raise Ea.InvalidCachedAttributeValueError, fn -> Code.compile_string(module_string) end
   end
 
-  test "fails with non-integer @cached attribute value" do
+  test "fails with invalid @cached attribute value" do
     module_string = """
-      defmodule CacheExampleNonIntegerValue do
+      defmodule CacheExampleInvalidValue do
         use Ea
 
         @cached :some_atom

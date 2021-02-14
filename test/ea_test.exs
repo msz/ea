@@ -23,7 +23,7 @@ defmodule EaTest do
     end
 
     @cached 1000
-    def this_is_cached_positive_integer() do
+    def this_is_cached_positive_integer do
       :result
     end
 

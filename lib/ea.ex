@@ -8,10 +8,24 @@ defmodule Ea do
 
   defmodule MultipleCachedAttributesError do
     defexception [:message]
+
+    def new(module, name, arity) do
+      %__MODULE__{
+        message:
+          "More than one @cached attribute defined for #{module}.#{name}/#{arity}. Please only define one."
+      }
+    end
   end
 
   defmodule InvalidCachedAttributeValueError do
     defexception [:message]
+
+    def new(invalid_value) do
+      %__MODULE__{
+        message:
+          "Invalid @cached attribute value passed: #{inspect(invalid_value)}. It needs to be true (never expire) or a positive integer representing expiry time."
+      }
+    end
   end
 
   defmodule InvalidOptionValueError do
@@ -59,10 +73,7 @@ defmodule Ea do
             cached_attr_value_to_expiry(cached_attr_value)
 
           [_ | _] ->
-            raise MultipleCachedAttributesError,
-                  "More than one @cached attribute defined for #{env.module}.#{name}/#{
-                    length(params)
-                  }. Please only define one."
+            raise MultipleCachedAttributesError.new(env.module, name, length(params))
         end
       end
 
@@ -307,9 +318,5 @@ defmodule Ea do
   defp cached_attr_value_to_expiry(millis) when is_integer(millis) and millis > 0, do: millis
 
   defp cached_attr_value_to_expiry(invalid),
-    do:
-      raise(
-        InvalidCachedAttributeValueError,
-        "Invalid @cached attribute value passed: #{inspect(invalid)}. It needs to be true (never expire) or a positive integer representing expiry time."
-      )
+    do: raise(InvalidCachedAttributeValueError.new(invalid))
 end

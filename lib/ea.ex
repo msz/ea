@@ -32,7 +32,7 @@ defmodule Ea do
         e in UndefinedFunctionError ->
           case e do
             %{module: @ea_backend_module, function: :invalidate_all, arity: 4} ->
-              raise Ea.NoInvalidateAllInBackendError.new(@ea_backend_module)
+              reraise Ea.NoInvalidateAllInBackendError.new(@ea_backend_module), __STACKTRACE__
 
             _ ->
               reraise e, __STACKTRACE__

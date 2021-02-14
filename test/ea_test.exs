@@ -9,6 +9,10 @@ defmodule EaTest do
 
   @backend_opts :ea |> Application.compile_env!(:default_backend) |> elem(1)
 
+  defmodule EmptyBackend do
+    @moduledoc false
+  end
+
   defmodule CacheExample do
     @moduledoc false
     use Ea
@@ -96,6 +100,10 @@ defmodule EaTest do
     def single_invalidation_test do
       invalidate_cache(:this_is_cached_with_param, [:arg])
     end
+
+    def invalidate_all_test do
+      invalidate_cache(:this_is_cached_with_param, 1)
+    end
   end
 
   defmodule CacheExampleCustomBackend do
@@ -112,6 +120,16 @@ defmodule EaTest do
 
     @cached true
     def this_is_cached, do: :result
+  end
+
+  defmodule CacheExampleEmptyBackend do
+    @moduledoc false
+
+    use Ea, backend: EmptyBackend
+
+    def invalidate_all_test do
+      invalidate_cache(:some_func, 1)
+    end
   end
 
   setup :verify_on_exit!
@@ -312,6 +330,23 @@ defmodule EaTest do
     end)
 
     assert :ok == CacheExample.single_invalidation_test()
+  end
+
+  test "cache invalidation works for arity" do
+    expect(BackendMock, :invalidate_all, fn CacheExample,
+                                            :this_is_cached_with_param,
+                                            1,
+                                            @backend_opts ->
+      :ok
+    end)
+
+    assert :ok == CacheExample.invalidate_all_test()
+  end
+
+  test "when backend does not implement invalidate_all/4, a well formed Ea error is returned" do
+    assert_raise Ea.NoInvalidateAllInBackendError, fn ->
+      CacheExampleEmptyBackend.invalidate_all_test()
+    end
   end
 
   defp setup_cache_pass(module, name, args) do

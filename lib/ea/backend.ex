@@ -20,4 +20,20 @@ defmodule Ea.Backend do
               args :: [any()],
               opts :: Keyword.t()
             ) :: :ok
+
+  @callback invalidate(
+              module :: module(),
+              function_name :: atom(),
+              args :: [any()],
+              opts :: Keyword.t()
+            ) :: :ok
+
+  @callback invalidate_all(
+              module :: module(),
+              function_name :: atom(),
+              arity :: arity(),
+              opts :: Keyword.t()
+            ) :: :ok
+
+  @optional_callbacks invalidate_all: 4
 end

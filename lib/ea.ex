@@ -22,8 +22,24 @@ defmodule Ea do
       Module.register_attribute(__MODULE__, :cached, accumulate: true)
       Module.register_attribute(__MODULE__, :ea_redefined_fun, accumulate: true)
 
-      defp invalidate_cache(function_name, args) do
+      defp invalidate_cache(function_name, args) when is_list(args) do
         @ea_backend_module.invalidate(__MODULE__, function_name, args, @ea_backend_opts)
+      end
+
+      defp invalidate_cache(function_name, arity) when is_integer(arity) and arity >= 0 do
+        @ea_backend_module.invalidate_all(__MODULE__, function_name, arity, @ea_backend_opts)
+      rescue
+        e in UndefinedFunctionError ->
+          case e do
+            %{module: @ea_backend_module, function: :invalidate_all, arity: 4} ->
+              raise Ea.NoInvalidateAllInBackendError.new(@ea_backend_module)
+
+            _ ->
+              reraise e, __STACKTRACE__
+          end
+
+        e ->
+          reraise e, __STACKTRACE__
       end
     end
   end

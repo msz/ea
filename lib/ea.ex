@@ -4,6 +4,7 @@ defmodule Ea do
   """
 
   @default_backend Application.compile_env!(:ea, :default_backend)
+  @time_units [:millisecond, :second, :minute]
 
   defmodule MultipleCachedAttributesError do
     defexception [:message]
@@ -13,10 +14,27 @@ defmodule Ea do
     defexception [:message]
   end
 
-  defmacro __using__(_) do
+  defmodule InvalidOptionValueError do
+    defexception [:message]
+
+    def new(invalid_value, option_name, allowed_option_values) do
+      %__MODULE__{
+        message:
+          "Invalid value #{invalid_value} was passed for the #{inspect(option_name)} Ea option. Allowed values: #{
+            inspect(allowed_option_values)
+          }"
+      }
+    end
+  end
+
+  defmacro __using__(opts) do
+    validate_ea_opts(opts)
+
     quote do
       @on_definition Ea
       @before_compile Ea
+
+      @ea_opts unquote(opts)
 
       Module.register_attribute(__MODULE__, :cached, accumulate: true)
       Module.register_attribute(__MODULE__, :ea_redefined_fun, accumulate: true)
@@ -127,6 +145,18 @@ defmodule Ea do
 
     Enum.reverse(funs_with_caching)
   end
+
+  defp validate_ea_opts(opts) do
+    validate_time_unit(Keyword.get(opts, :time_unit))
+  end
+
+  defp validate_time_unit(nil), do: :ok
+
+  defp validate_time_unit(time_unit) when time_unit in @time_units,
+    do: :ok
+
+  defp validate_time_unit(time_unit),
+    do: raise(InvalidOptionValueError.new(time_unit, :time_unit, @time_units))
 
   defp turn_unused_params_into_used(params) do
     Enum.map(params, fn

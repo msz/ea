@@ -210,6 +210,16 @@ defmodule EaTest do
     assert_raise Ea.MultipleCachedAttributesError, fn -> Code.compile_string(module_string) end
   end
 
+  test "fails when :time_unit option value is invalid" do
+    module_string = """
+      defmodule CacheExample do
+        use Ea, time_unit: :boom
+      end
+    """
+
+    assert_raise Ea.InvalidOptionValueError, fn -> Code.compile_string(module_string) end
+  end
+
   defp setup_cache_pass(module, name, args) do
     expect(BackendMock, :get, fn ^module, ^name, ^args, @backend_opts ->
       {:ok, :cached}

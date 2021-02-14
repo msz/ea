@@ -4,8 +4,8 @@ defmodule EaTest do
 
   import Hammox
 
-  defmock(BackendMock, for: Ea.Backend)
-  defmock(BackendMockSecondary, for: Ea.Backend)
+  alias Ea.BackendMock
+  alias Ea.BackendMockSecondary
 
   @backend_opts :ea |> Application.compile_env!(:default_backend) |> elem(1)
 

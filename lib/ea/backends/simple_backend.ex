@@ -6,6 +6,8 @@ defmodule Ea.Backends.SimpleBackend do
 
   @behaviour Ea.Backend
 
+  @time Application.compile_env!(:ea, :time)
+
   def start_link(opts) do
     name = get_name(opts)
     Agent.start_link(fn -> %{} end, name: name)
@@ -18,7 +20,7 @@ defmodule Ea.Backends.SimpleBackend do
 
     case Agent.get(name, &Map.fetch(&1, mfa)) do
       {:ok, {value, expiry_timestamp}} ->
-        if expiry_timestamp == :never or System.monotonic_time(:millisecond) < expiry_timestamp do
+        if expiry_timestamp == :never or @time.monotonic_milliseconds() < expiry_timestamp do
           {:ok, value}
         else
           :ok = Agent.update(name, &Map.delete(&1, mfa))
@@ -38,7 +40,7 @@ defmodule Ea.Backends.SimpleBackend do
     expiry_timestamp =
       case expiry do
         :never -> :never
-        expiry when is_integer(expiry) -> System.monotonic_time() + expiry
+        expiry when is_integer(expiry) -> @time.monotonic_milliseconds() + expiry
       end
 
     :ok = Agent.update(name, &Map.put(&1, mfa, {value, expiry_timestamp}))

@@ -303,10 +303,10 @@ defmodule EaTest do
   end
 
   test "uses the backend from the :backend option" do
-    expect(BackendMockSecondary, :get, fn CacheExampleCustomBackendWithOpts,
-                                          :this_is_cached,
-                                          [],
-                                          [name: :backend_name] ->
+    expect(BackendMockSecondary, :fetch, fn CacheExampleCustomBackendWithOpts,
+                                            :this_is_cached,
+                                            [],
+                                            [name: :backend_name] ->
       {:ok, :cached}
     end)
 
@@ -314,7 +314,7 @@ defmodule EaTest do
   end
 
   test "when the :backend opt is a plain atom, it passes empty list of backend opts" do
-    expect(BackendMockSecondary, :get, fn CacheExampleCustomBackend, :this_is_cached, [], [] ->
+    expect(BackendMockSecondary, :fetch, fn CacheExampleCustomBackend, :this_is_cached, [], [] ->
       {:ok, :cached}
     end)
 
@@ -350,14 +350,14 @@ defmodule EaTest do
   end
 
   defp setup_cache_pass(module, name, args) do
-    expect(BackendMock, :get, fn ^module, ^name, ^args, @backend_opts ->
+    expect(BackendMock, :fetch, fn ^module, ^name, ^args, @backend_opts ->
       {:ok, :cached}
     end)
   end
 
   defp setup_cache_fail(module, name, args, expected_value, expected_expiry) do
-    expect(BackendMock, :get, fn ^module, ^name, ^args, @backend_opts ->
-      {:error, :no_value}
+    expect(BackendMock, :fetch, fn ^module, ^name, ^args, @backend_opts ->
+      :error
     end)
 
     expect(BackendMock, :put, fn ^module,

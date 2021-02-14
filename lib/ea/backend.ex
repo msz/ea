@@ -3,8 +3,13 @@ defmodule Ea.Backend do
   Cache backend specification for Ea.
   """
 
-  @callback get(module :: module(), function_name :: atom(), args :: [any()], opts :: Keyword.t()) ::
-              {:ok, any()} | {:error, :no_value}
+  @callback fetch(
+              module :: module(),
+              function_name :: atom(),
+              args :: [any()],
+              opts :: Keyword.t()
+            ) ::
+              {:ok, any()} | :error
   @callback put(
               module :: module(),
               function_name :: atom(),

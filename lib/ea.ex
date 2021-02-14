@@ -274,7 +274,7 @@ defmodule Ea do
     params = strip_default_values(params)
 
     quote do
-      case @ea_backend_module.get(
+      case @ea_backend_module.fetch(
              unquote(module),
              unquote(name),
              unquote(params),
@@ -283,7 +283,7 @@ defmodule Ea do
         {:ok, value} ->
           value
 
-        {:error, :no_value} ->
+        :error ->
           unquote(apply_cache_failure_case(module, name, params, body, expiry))
       end
     end

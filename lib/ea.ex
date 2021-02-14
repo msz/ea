@@ -16,7 +16,7 @@ defmodule Ea do
       @on_definition Ea
       @before_compile Ea
 
-      @ea_opts unquote(ea_opts)
+      @ea_backend unquote(Keyword.get(ea_opts, :backend, @default_backend))
 
       Module.register_attribute(__MODULE__, :cached, accumulate: true)
       Module.register_attribute(__MODULE__, :ea_redefined_fun, accumulate: true)
@@ -253,7 +253,7 @@ defmodule Ea do
     params = strip_default_values(params)
 
     quote do
-      {backend_module, backend_opts} = Keyword.get(@ea_opts, :backend, unquote(@default_backend))
+      {backend_module, backend_opts} = @ea_backend
 
       case backend_module.get(unquote(module), unquote(name), unquote(params), backend_opts) do
         {:ok, value} ->

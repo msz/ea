@@ -6,41 +6,6 @@ defmodule Ea do
   @default_backend Application.compile_env!(:ea, :default_backend)
   @time_units [:millisecond, :second, :minute]
 
-  defmodule MultipleCachedAttributesError do
-    defexception [:message]
-
-    def new(module, name, arity) do
-      %__MODULE__{
-        message:
-          "More than one @cached attribute defined for #{module}.#{name}/#{arity}. Please only define one."
-      }
-    end
-  end
-
-  defmodule InvalidCachedAttributeValueError do
-    defexception [:message]
-
-    def new(invalid_value) do
-      %__MODULE__{
-        message:
-          "Invalid @cached attribute value passed: #{inspect(invalid_value)}. It needs to be true (never expire) or a positive integer representing expiry time."
-      }
-    end
-  end
-
-  defmodule InvalidOptionValueError do
-    defexception [:message]
-
-    def new(invalid_value, option_name, allowed_option_values) do
-      %__MODULE__{
-        message:
-          "Invalid value #{invalid_value} was passed for the #{inspect(option_name)} Ea option. Allowed values: #{
-            inspect(allowed_option_values)
-          }"
-      }
-    end
-  end
-
   defmacro __using__(opts) do
     validate_ea_opts(opts)
 
@@ -73,7 +38,7 @@ defmodule Ea do
             cached_attr_value_to_expiry(cached_attr_value)
 
           [_ | _] ->
-            raise MultipleCachedAttributesError.new(env.module, name, length(params))
+            raise Ea.MultipleCachedAttributesError.new(env.module, name, length(params))
         end
       end
 
@@ -167,7 +132,7 @@ defmodule Ea do
     do: :ok
 
   defp validate_time_unit(time_unit),
-    do: raise(InvalidOptionValueError.new(time_unit, :time_unit, @time_units))
+    do: raise(Ea.InvalidOptionValueError.new(time_unit, :time_unit, @time_units))
 
   defp turn_unused_params_into_used(params) do
     Enum.map(params, fn
@@ -318,5 +283,5 @@ defmodule Ea do
   defp cached_attr_value_to_expiry(millis) when is_integer(millis) and millis > 0, do: millis
 
   defp cached_attr_value_to_expiry(invalid),
-    do: raise(InvalidCachedAttributeValueError.new(invalid))
+    do: raise(Ea.InvalidCachedAttributeValueError.new(invalid))
 end

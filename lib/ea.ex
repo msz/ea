@@ -6,8 +6,11 @@ defmodule Ea do
   @default_backend Application.compile_env!(:ea, :default_backend)
 
   defmacro __using__(opts) do
-    backend_opt = Keyword.get(opts, :backend)
-    ea_opts = [backend: parse_backend_opt(backend_opt)]
+    ea_opts =
+      case Keyword.fetch(opts, :backend) do
+        {:ok, backend_opt} -> [backend: parse_backend_opt(backend_opt)]
+        :error -> []
+      end
 
     quote do
       @on_definition Ea
@@ -250,7 +253,7 @@ defmodule Ea do
     params = strip_default_values(params)
 
     quote do
-      {backend_module, backend_opts} = unquote(@default_backend)
+      {backend_module, backend_opts} = Keyword.get(@ea_opts, :backend, unquote(@default_backend))
 
       case backend_module.get(unquote(module), unquote(name), unquote(params), backend_opts) do
         {:ok, value} ->

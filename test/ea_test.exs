@@ -5,6 +5,7 @@ defmodule EaTest do
   import Hammox
 
   defmock(BackendMock, for: Ea.Backend)
+  defmock(BackendMockSecondary, for: Ea.Backend)
 
   @backend_opts :ea |> Application.compile_env!(:default_backend) |> elem(1)
 
@@ -91,6 +92,22 @@ defmodule EaTest do
     rescue
       _ -> :rescued
     end
+  end
+
+  defmodule CacheExampleCustomBackend do
+    @moduledoc false
+    use Ea, backend: BackendMockSecondary
+
+    @cached true
+    def this_is_cached, do: :result
+  end
+
+  defmodule CacheExampleCustomBackendWithOpts do
+    @moduledoc false
+    use Ea, backend: {BackendMockSecondary, name: :backend_name}
+
+    @cached true
+    def this_is_cached, do: :result
   end
 
   setup :verify_on_exit!
@@ -261,6 +278,25 @@ defmodule EaTest do
     """
 
     assert_raise Ea.InvalidOptionValueError, fn -> Code.compile_string(module_string) end
+  end
+
+  test "uses the backend from the :backend option" do
+    expect(BackendMockSecondary, :get, fn CacheExampleCustomBackendWithOpts,
+                                          :this_is_cached,
+                                          [],
+                                          [name: :backend_name] ->
+      {:ok, :cached}
+    end)
+
+    assert :cached == CacheExampleCustomBackendWithOpts.this_is_cached()
+  end
+
+  test "when the :backend opt is a plain atom, it passes empty list of backend opts" do
+    expect(BackendMockSecondary, :get, fn CacheExampleCustomBackend, :this_is_cached, [], [] ->
+      {:ok, :cached}
+    end)
+
+    assert :cached == CacheExampleCustomBackend.this_is_cached()
   end
 
   defp setup_cache_pass(module, name, args) do

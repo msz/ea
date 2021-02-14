@@ -4,16 +4,16 @@ defmodule Ea do
   """
 
   @default_backend Application.compile_env!(:ea, :default_backend)
-  @time_units [:millisecond, :second, :minute]
 
   defmacro __using__(opts) do
-    validate_ea_opts(opts)
+    backend_opt = Keyword.get(opts, :backend)
+    ea_opts = [backend: parse_backend_opt(backend_opt)]
 
     quote do
       @on_definition Ea
       @before_compile Ea
 
-      @ea_opts unquote(opts)
+      @ea_opts unquote(ea_opts)
 
       Module.register_attribute(__MODULE__, :cached, accumulate: true)
       Module.register_attribute(__MODULE__, :ea_redefined_fun, accumulate: true)
@@ -122,17 +122,26 @@ defmodule Ea do
     Enum.reverse(funs_with_caching)
   end
 
-  defp validate_ea_opts(opts) do
-    validate_time_unit(Keyword.get(opts, :time_unit))
-  end
+  defp parse_backend_opt(backend) when is_atom(backend), do: parse_backend_opt({backend, []})
 
-  defp validate_time_unit(nil), do: :ok
+  defp parse_backend_opt({:__aliases__, _, _} = backend),
+    do: parse_backend_opt({backend, []})
 
-  defp validate_time_unit(time_unit) when time_unit in @time_units,
-    do: :ok
+  defp parse_backend_opt({backend, opts}) when is_atom(backend) and is_list(opts),
+    do: {backend, opts}
 
-  defp validate_time_unit(time_unit),
-    do: raise(Ea.InvalidOptionValueError.new(time_unit, :time_unit, @time_units))
+  defp parse_backend_opt({{:__aliases__, _, _} = backend, opts}) when is_list(opts),
+    do: {backend, opts}
+
+  defp parse_backend_opt(invalid),
+    do:
+      raise(
+        Ea.InvalidOptionValueError.new(
+          invalid,
+          :backend,
+          "either a backend module, or a 2-tuple where the first element is a backend module and the second element is a list of options for the backend module"
+        )
+      )
 
   defp turn_unused_params_into_used(params) do
     Enum.map(params, fn

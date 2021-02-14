@@ -243,10 +243,20 @@ defmodule EaTest do
     assert_raise Ea.MultipleCachedAttributesError, fn -> Code.compile_string(module_string) end
   end
 
-  test "fails when :time_unit option value is invalid" do
+  test "fails when :backend option value is an invalid value" do
     module_string = """
       defmodule CacheExample do
-        use Ea, time_unit: :boom
+        use Ea, backend: 1
+      end
+    """
+
+    assert_raise Ea.InvalidOptionValueError, fn -> Code.compile_string(module_string) end
+  end
+
+  test "fails when :backend option value is a tuple of invalid values" do
+    module_string = """
+      defmodule CacheExample do
+        use Ea, backend: {SomeBackend, :invalid}
       end
     """
 

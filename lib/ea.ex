@@ -6,17 +6,17 @@ defmodule Ea do
   @default_backend Application.compile_env!(:ea, :default_backend)
 
   defmacro __using__(opts) do
-    ea_opts =
+    ea_backend =
       case Keyword.fetch(opts, :backend) do
-        {:ok, backend_opt} -> [backend: parse_backend_opt(backend_opt)]
-        :error -> []
+        {:ok, backend_opt} -> parse_backend_opt(backend_opt)
+        :error -> @default_backend
       end
 
     quote do
       @on_definition Ea
       @before_compile Ea
 
-      @ea_backend unquote(Keyword.get(ea_opts, :backend, @default_backend))
+      @ea_backend unquote(ea_backend)
 
       Module.register_attribute(__MODULE__, :cached, accumulate: true)
       Module.register_attribute(__MODULE__, :ea_redefined_fun, accumulate: true)

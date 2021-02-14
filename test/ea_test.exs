@@ -22,6 +22,11 @@ defmodule EaTest do
       param
     end
 
+    @cached 1000
+    def this_is_cached_positive_integer() do
+      :result
+    end
+
     @cached true
     def this_is_cached_with_unused_param(_param) do
       :baked_in_value
@@ -87,6 +92,63 @@ defmodule EaTest do
     assert :cached == CacheExample.this_is_cached_with_param(:val)
   end
 
+  test "cached attribute value is passed as :never if it's true" do
+    setup_cache_fail(CacheExample, :this_is_cached, [], :result, :never)
+
+    assert :result == CacheExample.this_is_cached()
+  end
+
+  test "cached attribute value is passed as-is if it's a positive integer" do
+    setup_cache_fail(CacheExample, :this_is_cached_positive_integer, [], :result, 1000)
+
+    assert :result == CacheExample.this_is_cached_positive_integer()
+  end
+
+  test "fails with negative @cached attribute value" do
+    module_string = """
+      defmodule CacheExampleNegativeValue do
+        use Ea
+
+        @cached -1
+        def this_is_cached do
+          nil
+        end
+      end
+    """
+
+    assert_raise Ea.InvalidCachedAttributeValueError, fn -> Code.compile_string(module_string) end
+  end
+
+  test "fails with zero @cached attribute value" do
+    module_string = """
+      defmodule CacheExampleZeroValue do
+        use Ea
+
+        @cached 0
+        def this_is_cached do
+          nil
+        end
+      end
+    """
+
+    assert_raise Ea.InvalidCachedAttributeValueError, fn -> Code.compile_string(module_string) end
+  end
+
+  test "fails with non-integer @cached attribute value" do
+    module_string = """
+      defmodule CacheExampleNonIntegerValue do
+        use Ea
+
+        @cached :some_atom
+        def this_is_cached do
+          nil
+        end
+      end
+    """
+
+    assert_raise Ea.InvalidCachedAttributeValueError, fn -> Code.compile_string(module_string) end
+  end
+
   test "unused params are still used as params for caching" do
     setup_cache_pass(CacheExample, :this_is_cached_with_unused_param, [:val])
 
@@ -98,7 +160,7 @@ defmodule EaTest do
   end
 
   test "attribute values are not overriden by later redeclarations" do
-    setup_cache_fail(CacheExample, :attr_test, [], :expected_val)
+    setup_cache_fail(CacheExample, :attr_test, [], :expected_val, :never)
     assert :expected_val == CacheExample.attr_test()
   end
 
@@ -123,12 +185,12 @@ defmodule EaTest do
   end
 
   test "return value of function with rescue is cached" do
-    setup_cache_fail(CacheExample, :rescue_success_test, [], :result)
+    setup_cache_fail(CacheExample, :rescue_success_test, [], :result, :never)
     assert :result == CacheExample.rescue_success_test()
   end
 
   test "return value of rescue block is cached" do
-    setup_cache_fail(CacheExample, :rescue_failure_test, [], :rescued)
+    setup_cache_fail(CacheExample, :rescue_failure_test, [], :rescued, :never)
     assert :rescued == CacheExample.rescue_failure_test()
   end
 
@@ -154,12 +216,17 @@ defmodule EaTest do
     end)
   end
 
-  defp setup_cache_fail(module, name, args, expected_value) do
+  defp setup_cache_fail(module, name, args, expected_value, expected_expiry) do
     expect(BackendMock, :get, fn ^module, ^name, ^args, @backend_opts ->
       {:error, :no_value}
     end)
 
-    expect(BackendMock, :put, fn ^module, ^name, ^args, ^expected_value, @backend_opts ->
+    expect(BackendMock, :put, fn ^module,
+                                 ^name,
+                                 ^args,
+                                 ^expected_value,
+                                 ^expected_expiry,
+                                 @backend_opts ->
       :ok
     end)
   end

@@ -10,6 +10,7 @@ defmodule Ea.Backend do
               function_name :: atom(),
               args :: [any()],
               value :: any(),
+              expiry :: pos_integer() | :never,
               opts :: Keyword.t()
             ) ::
               :ok

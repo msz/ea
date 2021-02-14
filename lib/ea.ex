@@ -9,6 +9,10 @@ defmodule Ea do
     defexception [:message]
   end
 
+  defmodule InvalidCachedAttributeValueError do
+    defexception [:message]
+  end
+
   defmacro __using__(_) do
     quote do
       @on_definition Ea
@@ -20,21 +24,21 @@ defmodule Ea do
   end
 
   def __on_definition__(env, kind, name, params, guards, body) do
-    {open_fun_name, open_fun_params, open_fun_cached_value} =
+    {open_fun_name, open_fun_params, open_fun_expiry} =
       Module.get_attribute(env.module, :ea_open_fun, {nil, [], nil})
 
-    cached_value =
+    expiry =
       if {name, length(params)} == {open_fun_name, length(open_fun_params)} and
-           open_fun_cached_value != nil do
-        open_fun_cached_value
+           open_fun_expiry != nil do
+        open_fun_expiry
       else
         case Module.get_attribute(env.module, :cached) do
           [] ->
             nil
 
-          [cached_value] ->
+          [cached_attr_value] ->
             Module.delete_attribute(env.module, :cached)
-            cached_value
+            cached_attr_value_to_expiry(cached_attr_value)
 
           [_ | _] ->
             raise MultipleCachedAttributesError,
@@ -49,12 +53,17 @@ defmodule Ea do
     Module.put_attribute(
       env.module,
       :ea_redefined_fun,
-      {kind, name, params, guards, body, attrs, cached_value}
+      {kind, name, params, guards, body, attrs, expiry}
     )
 
     unless {name, length(params)} == {open_fun_name, length(open_fun_params)} do
-      new_open_fun_cached_value = if body == nil, do: cached_value, else: nil
-      Module.put_attribute(env.module, :ea_open_fun, {name, params, new_open_fun_cached_value})
+      new_open_fun_expiry = if body == nil, do: expiry, else: nil
+
+      Module.put_attribute(
+        env.module,
+        :ea_open_fun,
+        {name, params, new_open_fun_expiry}
+      )
     end
   end
 
@@ -69,7 +78,7 @@ defmodule Ea do
       |> reject_empty_clauses()
       # No need to redefine functions where no clauses have any caching
       |> reject_not_cached_funs()
-      |> Enum.reduce({[], []}, fn {kind, name, params, guard, body, attrs, cached_value},
+      |> Enum.reduce({[], []}, fn {kind, name, params, guard, body, attrs, expiry},
                                   {prev_funs, all} ->
         override_clause =
           params
@@ -89,7 +98,7 @@ defmodule Ea do
         # caching mechanism, so we need to adjust that.
         params = turn_unused_params_into_used(params)
 
-        decorated_body = apply_caching(env.module, name, params, body, cached_value)
+        decorated_body = apply_caching(env.module, name, params, body, expiry)
 
         def_clause =
           case guard do
@@ -162,7 +171,7 @@ defmodule Ea do
   defp reject_empty_clauses(redefined_funs) do
     Enum.reject(
       redefined_funs,
-      &match?({_kind, _name, _params, _guards, nil, _attrs, _cached_value}, &1)
+      &match?({_kind, _name, _params, _guards, nil, _attrs, _expiry}, &1)
     )
   end
 
@@ -170,19 +179,19 @@ defmodule Ea do
     not_cached_funs =
       redefined_funs
       |> Enum.group_by(
-        fn {_kind, name, params, _guards, _body, _attrs, _cached_value} ->
+        fn {_kind, name, params, _guards, _body, _attrs, _expiry} ->
           {name, length(params)}
         end,
-        fn {_kind, _name, _params, _guards, _body, _attrs, cached_value} ->
-          cached_value
+        fn {_kind, _name, _params, _guards, _body, _attrs, expiry} ->
+          expiry
         end
       )
-      |> Enum.filter(fn {_name_and_arity, cached_values} ->
-        Enum.all?(cached_values, &is_nil/1)
+      |> Enum.filter(fn {_name_and_arity, expiries} ->
+        Enum.all?(expiries, &is_nil/1)
       end)
-      |> Enum.map(fn {name_and_arity, _cached_values} -> name_and_arity end)
+      |> Enum.map(fn {name_and_arity, _expiries} -> name_and_arity end)
 
-    Enum.reject(redefined_funs, fn {_kind, name, params, _guards, _body, _attrs, _cached_value} ->
+    Enum.reject(redefined_funs, fn {_kind, name, params, _guards, _body, _attrs, _expiry} ->
       {name, length(params)} in not_cached_funs
     end)
   end
@@ -201,17 +210,16 @@ defmodule Ea do
     :lists.seq(arity, arity - default_count, -1)
   end
 
-  defp apply_caching(module, name, params, [do: body], cached_value) do
-    [do: apply_caching(module, name, params, body, cached_value)]
+  defp apply_caching(module, name, params, [do: body], expiry) do
+    [do: apply_caching(module, name, params, body, expiry)]
   end
 
-  defp apply_caching(module, name, params, [do: body, rescue: rescue_block], cached_value) do
+  defp apply_caching(module, name, params, [do: body, rescue: rescue_block], expiry) do
     [
-      do: apply_caching(module, name, params, body, cached_value),
+      do: apply_caching(module, name, params, body, expiry),
       rescue:
         Enum.map(rescue_block, fn {:->, meta, [match, match_body]} ->
-          {:->, meta,
-           [match, apply_cache_failure_case(module, name, params, match_body, cached_value)]}
+          {:->, meta, [match, apply_cache_failure_case(module, name, params, match_body, expiry)]}
         end)
     ]
   end
@@ -220,7 +228,7 @@ defmodule Ea do
     body
   end
 
-  defp apply_caching(module, name, params, body, true) do
+  defp apply_caching(module, name, params, body, expiry) do
     # We will refer to these params in the body, but this comes from the function
     # head and might contain a default value. We want to refer to a `param \\ :default_value`
     # as just `param` in the body.
@@ -234,17 +242,26 @@ defmodule Ea do
           value
 
         {:error, :no_value} ->
-          unquote(apply_cache_failure_case(module, name, params, body, true))
+          unquote(apply_cache_failure_case(module, name, params, body, expiry))
       end
     end
   end
 
-  def apply_cache_failure_case(module, name, params, body, _cache_value) do
+  def apply_cache_failure_case(module, name, params, body, expiry) do
     quote do
       {backend_module, backend_opts} = unquote(@default_backend)
 
       result = unquote(body)
-      backend_module.put(unquote(module), unquote(name), unquote(params), result, backend_opts)
+
+      backend_module.put(
+        unquote(module),
+        unquote(name),
+        unquote(params),
+        result,
+        unquote(expiry),
+        backend_opts
+      )
+
       result
     end
   end
@@ -255,4 +272,14 @@ defmodule Ea do
       param -> param
     end)
   end
+
+  defp cached_attr_value_to_expiry(true), do: :never
+  defp cached_attr_value_to_expiry(millis) when is_integer(millis) and millis > 0, do: millis
+
+  defp cached_attr_value_to_expiry(invalid),
+    do:
+      raise(
+        InvalidCachedAttributeValueError,
+        "Invalid @cached attribute value passed: #{inspect(invalid)}. It needs to be true (never expire) or a positive integer representing expiry time."
+      )
 end

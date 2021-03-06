@@ -6,7 +6,7 @@ defmodule Ea.Backends.AgentBackend do
 
   @behaviour Ea.Backend
 
-  @time Application.compile_env!(:ea, :time)
+  @time Application.get_env(:ea, :time) || Ea.Time
 
   def start_link(opts) do
     name = get_name(opts)

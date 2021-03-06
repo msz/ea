@@ -3,7 +3,8 @@ defmodule Ea do
   The main Ea module.
   """
 
-  @default_backend Application.compile_env!(:ea, :default_backend)
+  @default_backend Application.get_env(:ea, :default_backend) ||
+                     {Ea.Backends.AgentBackend, name: Ea.DefaultAgentBackendInstance}
 
   defmacro __using__(opts) do
     {backend_module, backend_opts} =

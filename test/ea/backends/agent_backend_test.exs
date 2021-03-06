@@ -1,9 +1,9 @@
-defmodule Ea.Backends.SimpleBackendTest do
-  alias Ea.Backends.SimpleBackend
+defmodule Ea.Backends.AgentBackendTest do
+  alias Ea.Backends.AgentBackend
   alias Ea.TimeMock
 
   use ExUnit.Case, async: true
-  use Hammox.Protect, module: SimpleBackend, behaviour: Ea.Backend
+  use Hammox.Protect, module: AgentBackend, behaviour: Ea.Backend
 
   import Hammox
 
@@ -58,6 +58,6 @@ defmodule Ea.Backends.SimpleBackendTest do
   end
 
   defp setup_backend(_context) do
-    [backend: SimpleBackend.start_link(name: @name)]
+    [backend: AgentBackend.start_link(name: @name)]
   end
 end

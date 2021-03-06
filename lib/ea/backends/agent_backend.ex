@@ -1,4 +1,4 @@
-defmodule Ea.Backends.SimpleBackend do
+defmodule Ea.Backends.AgentBackend do
   @moduledoc """
   Simple, Agent-based in-memory caching backend.
   """
@@ -76,7 +76,7 @@ defmodule Ea.Backends.SimpleBackend do
 
       :error ->
         raise ArgumentError,
-              "You need to pass the :name of your SimpleBackend instance as a backend option"
+              "You need to pass the :name of your AgentBackend instance as a backend option"
     end
   end
 end

@@ -26,7 +26,7 @@ defmodule Ea.MixProject do
   defp deps do
     [
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:hammox, "~> 0.4", only: [:test], runtime: false}
+      {:hammox, "~> 0.5", only: [:test], runtime: false}
     ]
   end
 end
